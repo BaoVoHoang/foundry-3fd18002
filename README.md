@@ -2,24 +2,18 @@
 # GitLite
 
 ## One-Line Pitch
-Empower your team with an intuitive, visual understanding of Git's inner workings.
+Empower your team with an interactive, visual understanding of Git's inner workings.
 
 ## Features
-- Interactive Repository Management: Create, edit, delete files; track file status.
-- Graphical Commit History: Visualize commit history as a directed graph.
-- Branching & Checkout: Easily manage branches and switch contexts.
-- Visual Merge Conflicts: See conflicts and resolve them with line-based diffs.
+- File Editor & Staging Area: Track files in a workspace with status visibility.
+- Commit DAG & Content-Addressed Storage: Expose Git's storage model and algorithms.
+- Branch Management & Checkout: Create, list, and switch branches effortlessly.
+- Three-Way Merge with Visual Diff: Merge branches intuitively with conflict markers.
 
 ## Getting Started
-```npm install foundry-gitlite`
-```bash
-npm run dev
-```
-Or build for production:
-```bash
-npm run build
-```
+1. Install dependencies: `npm install`
+2. Run development: `npm run dev`
+3. Build for production: `npm run build`
 
-## Footer
-This repository was built autonomously by Foundry AI agents.
+**Built Autonomously by Foundry AI Agents**
 ```
