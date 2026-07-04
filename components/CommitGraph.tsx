@@ -5,6 +5,12 @@
 // anchored to their tip commits, and a HEAD indicator. Clicking a node
 // invokes onSelectCommit; right-clicking (or the "+branch" label) opens
 // a small inline form to create a branch from that commit.
+//
+// Nodes can also be checked for comparison (up to two at a time). When
+// one or two commits are checked, onCompareChange fires with the
+// selected hashes so a parent component can render a DiffViewer: a single
+// checked commit compares against its first parent; two checked commits
+// compare directly against each other.
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { getObjects, getRefs, getConfig } from '@/lib/storage';
@@ -14,6 +20,8 @@ import type { GitObjectMap, RefMap, RepoConfig } from '@/lib/types';
 
 export interface CommitGraphProps {
   onSelectCommit?: (hash: string) => void;
+  /** Fired whenever the set of commits checked for comparison changes. */
+  onCompareChange?: (hashes: string[]) => void;
 }
 
 const NODE_RADIUS = 18;
@@ -35,7 +43,7 @@ function colorForLane(lane: number): string {
   return LANE_COLORS[lane % LANE_COLORS.length];
 }
 
-export default function CommitGraph({ onSelectCommit }: CommitGraphProps) {
+export default function CommitGraph({ onSelectCommit, onCompareChange }: CommitGraphProps) {
   const { createBranch } = useRepository();
   const [objects, setObjects] = useState<GitObjectMap>({});
   const [refs, setRefs] = useState<RefMap>({});
@@ -45,6 +53,7 @@ export default function CommitGraph({ onSelectCommit }: CommitGraphProps) {
     HEAD: null,
   });
   const [selected, setSelected] = useState<string | null>(null);
+  const [compareSet, setCompareSet] = useState<string[]>([]);
   const [branchFormFor, setBranchFormFor] = useState<string | null>(null);
   const [branchNameInput, setBranchNameInput] = useState('');
 
@@ -94,31 +103,22 @@ export default function CommitGraph({ onSelectCommit }: CommitGraphProps) {
 
   const lanes = useMemo(() => {
     const laneOf = new Map<string, number>();
-    const branchNames = Object.keys(refs).filter((r) =>
-      r.startsWith('refs/heads/')
-    );
-    branchNames.sort((a, b) => {
-      if (a === 'refs/heads/main') return -1;
-      if (b === 'refs/heads/main') return 1;
-      return a.localeCompare(b);
-    });
-
     let nextLane = 0;
-    for (const branchRef of branchNames) {
-      const tip = refs[branchRef];
+    // Walk each commit's first-parent chain, assigning a lane the first
+    // time an unassigned chain is encountered (stable, deterministic).
+    for (const hash of order) {
+      if (laneOf.has(hash)) continue;
       let lane = -1;
-      const stack = [tip];
-      const seen = new Set<string>();
       const path: string[] = [];
+      const stack: string[] = [hash];
       while (stack.length > 0) {
         const cur = stack.pop() as string;
-        if (seen.has(cur)) continue;
-        seen.add(cur);
-        path.push(cur);
         if (laneOf.has(cur)) {
           lane = laneOf.get(cur) as number;
           break;
         }
+        if (path.includes(cur)) break;
+        path.push(cur);
         const parents = objects[cur]?.commit?.parentHashes ?? [];
         for (const p of parents) stack.push(p);
       }
@@ -201,11 +201,34 @@ export default function CommitGraph({ onSelectCommit }: CommitGraphProps) {
     load();
   }
 
+  function toggleCompare(hash: string) {
+    setCompareSet((prev) => {
+      let next: string[];
+      if (prev.includes(hash)) {
+        next = prev.filter((h) => h !== hash);
+      } else if (prev.length >= 2) {
+        // Keep only the most recently checked one, then add the new one.
+        next = [prev[prev.length - 1], hash];
+      } else {
+        next = [...prev, hash];
+      }
+      onCompareChange?.(next);
+      return next;
+    });
+  }
+
   const isEmpty = commitHashes.length === 0;
 
   return (
     <div className="border border-gray-200 rounded p-4 bg-white">
-      <h2 className="font-semibold mb-2">Commit Graph</h2>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="font-semibold">Commit Graph</h2>
+        {compareSet.length > 0 && (
+          <span className="text-xs text-gray-500" data-testid="compare-selection-count">
+            {compareSet.length} commit{compareSet.length === 1 ? '' : 's'} selected to compare
+          </span>
+        )}
+      </div>
       {isEmpty ? (
         <p className="text-sm text-gray-400" data-testid="commit-graph-empty">
           {config.repoInitialized
@@ -259,32 +282,18 @@ export default function CommitGraph({ onSelectCommit }: CommitGraphProps) {
           {branchTips.map(({ branch, hash }) => {
             const pos = positions.get(hash);
             if (!pos) return null;
-            const lane = lanes.get(hash) ?? 0;
-            const chipWidth = Math.max(branch.length * 7 + 16, 40);
             return (
-              <g
+              <text
                 key={branch}
-                transform={`translate(${pos.x - chipWidth / 2}, ${
-                  pos.y - NODE_RADIUS - 26
-                })`}
+                x={pos.x}
+                y={pos.y - NODE_RADIUS - 8}
+                textAnchor="middle"
+                fontSize={9}
+                fill="#374151"
+                data-testid={`branch-label-${branch}`}
               >
-                <rect
-                  width={chipWidth}
-                  height={20}
-                  rx={4}
-                  fill={colorForLane(lane)}
-                  data-testid={`branch-chip-${branch}`}
-                />
-                <text
-                  x={chipWidth / 2}
-                  y={14}
-                  textAnchor="middle"
-                  fontSize={11}
-                  fill="white"
-                >
-                  {branch}
-                </text>
-              </g>
+                {branch}
+              </text>
             );
           })}
 
@@ -294,6 +303,7 @@ export default function CommitGraph({ onSelectCommit }: CommitGraphProps) {
             const lane = lanes.get(hash) ?? 0;
             const isSelected = selected === hash;
             const isHead = headHash === hash;
+            const isChecked = compareSet.includes(hash);
             return (
               <g key={hash}>
                 <circle
@@ -331,6 +341,21 @@ export default function CommitGraph({ onSelectCommit }: CommitGraphProps) {
                     HEAD
                   </text>
                 )}
+                <foreignObject
+                  x={pos.x - NODE_RADIUS - 22}
+                  y={pos.y - 8}
+                  width={16}
+                  height={16}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleCompare(hash)}
+                    data-testid={`compare-checkbox-${hash}`}
+                    aria-label={`Select commit ${hash.slice(0, 7)} for comparison`}
+                    style={{ cursor: 'pointer' }}
+                  />
+                </foreignObject>
                 <text
                   x={pos.x + NODE_RADIUS + 6}
                   y={pos.y + 3}
