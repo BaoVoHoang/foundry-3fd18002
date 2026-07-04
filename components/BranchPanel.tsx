@@ -2,14 +2,18 @@
 
 // Lists all branches, highlights the current one, and provides Create
 // Branch (from HEAD) and Checkout actions, wired through useRepository.
+// Also exposes a button to open MergeDialog for merging another branch
+// into the current one.
 
 import { useState } from 'react';
 import { useRepository } from '@/hooks/useRepository';
+import MergeDialog from './MergeDialog';
 
 export default function BranchPanel() {
   const { branches, currentBranch, createBranch, checkout, head, refresh } =
     useRepository();
   const [newBranchName, setNewBranchName] = useState('');
+  const [mergeOpen, setMergeOpen] = useState(false);
 
   function handleCreate() {
     const name = newBranchName.trim();
@@ -23,6 +27,8 @@ export default function BranchPanel() {
     checkout(branch);
     refresh();
   }
+
+  const otherBranchCount = branches.filter((b) => b !== currentBranch).length;
 
   return (
     <div className="border border-gray-200 rounded p-4 bg-white">
@@ -70,7 +76,7 @@ export default function BranchPanel() {
         })}
       </ul>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 mb-3">
         <input
           type="text"
           value={newBranchName}
@@ -89,6 +95,18 @@ export default function BranchPanel() {
           Create Branch (from HEAD)
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setMergeOpen(true)}
+        disabled={otherBranchCount === 0}
+        className="w-full text-sm px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+        data-testid="open-merge-dialog-button"
+      >
+        Merge Branch...
+      </button>
+
+      <MergeDialog open={mergeOpen} onClose={() => setMergeOpen(false)} />
     </div>
   );
 }

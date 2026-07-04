@@ -6,7 +6,6 @@ import CommitForm from '@/components/CommitForm';
 import BranchPanel from '@/components/BranchPanel';
 import CommitGraph from '@/components/CommitGraph';
 import DiffViewer from '@/components/DiffViewer';
-import MergeDialog from '@/components/MergeDialog';
 
 export default function Home() {
   return (
@@ -30,8 +29,6 @@ export default function Home() {
           <BranchPanel />
         </aside>
       </div>
-
-      <MergeDialog />
     </main>
   );
 }
