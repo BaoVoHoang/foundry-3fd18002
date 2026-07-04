@@ -31,7 +31,17 @@ export interface GitObject {
   commit?: CommitObject;
 }
 
-export type FileStatus = 'untracked' | 'modified' | 'staged' | 'committed';
+// The ADR's base schema lists 'untracked' | 'modified' | 'staged' | 'committed'.
+// 'deleted' is added to represent a workspace file that has been removed but
+// not yet committed, so its removal can flow through the same stage/unstage
+// lifecycle as any other change (per acceptance criteria: "Deleting a file
+// marks it as deleted and the deletion can be staged").
+export type FileStatus =
+  | 'untracked'
+  | 'modified'
+  | 'staged'
+  | 'committed'
+  | 'deleted';
 
 export interface WorkspaceFile {
   content: string;
